@@ -1,2 +1,1 @@
-# spotter
-Spotter: A Gym Companion
+# Spotter: A Gym Companion
