@@ -1,0 +1,7 @@
+[package]
+name = "spotter-cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+spotter-core = { path = "../spotter-core" }
