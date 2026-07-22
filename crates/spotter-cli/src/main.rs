@@ -1,8 +1,7 @@
 use std::collections::HashMap;
-use std::io::Write;
 mod commands;
+mod input;
 
-use std::io;
 use std::path::Path;
 
 use spotter_core::exercise::Exercise;
@@ -11,20 +10,7 @@ use spotter_core::exercise::Level;
 
 use crate::commands::Handler;
 use crate::commands::build_command_table;
-
-pub fn getUserInput(cli_msg: String) -> String {
-    let mut input = String::new();
-
-    print!("{cli_msg}");
-    let _ = io::stdout().flush();
-    // Read the line from standard input
-    io::stdin()
-        .read_line(&mut input)
-        .expect("Failed to read line");
-
-    // Remove the trailing newline character (\n)
-    input.trim().to_string()
-}
+use crate::input::getUserInput;
 
 fn main() {
     let path = Path::new("data/free-exercise-db/exercises");

@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use rand::seq::SliceRandom;
 use spotter_core::exercise::{Exercise, ExerciseLibrary, Muscle};
 
-use crate::getUserInput;
+use crate::input::{ArgType, getUserInput, parseArgs};
 
 /// What the main loop should do after a command runs.
 /// A hashmap-of-functions has no `match` to fall through to a `Quit` arm,
@@ -58,32 +58,36 @@ fn handle_info(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
 /// score (best matches first, printed as `score: N`, lower is better).
 fn handle_search(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
     // start with basic implementation of search. add further args later
-
-    if args.len() < 1 {
+    let parsed_args = match parseArgs(args, None) {
+        Ok(pargs) => pargs,
+        Err(err) => {
+            println!("{}", err);
+            return ControlFlow::Continue
+        }
+    };
+    if parsed_args.len() < 1 {
         println!("Error: Not enough arguments.");
         return ControlFlow::Continue;
     }
 
-    let mut search_term = args[0];
-    #[warn(unused_assignments)]
-    let mut joined_term = String::new();
-
-    if search_term.contains('\"') {
-        let mut terms: Vec<&str> = Vec::new();
-        terms.push(args[0].trim_matches('\"'));
-        for i in 1..args.len() {
-            let arg = args[i];
-            let word: &str = arg.trim_matches('\"');
-            terms.push(word);
-            if arg.contains('\"') {
-                break;
-            }
-        }
-        joined_term = terms.join(" ");
-        search_term = &joined_term;
+    // If there are any flags in parsed_args, error:
+    if parsed_args
+        .iter()
+        .any(|arg| matches!(arg, ArgType::Flag(_) | ArgType::Option { .. }))
+    {
+        println!("Error: invalid flag.");
+        return ControlFlow::Continue;
     }
 
-    let similarity_scores = library.smart_search(search_term);
+    let mut words: Vec<&str> = Vec::new();
+    for arg in &parsed_args {
+        if let ArgType::Positional(word) = arg {
+            words.push(word);
+        }
+    }
+    let search_term = words.join(" ");
+
+    let similarity_scores = library.smart_search(&search_term);
 
     let mut counter = 1;
     for scored in similarity_scores {
