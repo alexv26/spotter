@@ -220,6 +220,35 @@ impl fmt::Display for Muscle {
     }
 }
 
+impl std::str::FromStr for Muscle {
+    type Err = String;
+
+    /// The reverse of `as_str`: turns user-typed text like "biceps" back into
+    /// a `Muscle`. Case-insensitive, since CLI input shouldn't have to match exactly.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "abdominals" => Ok(Muscle::Abdominals),
+            "abductors" => Ok(Muscle::Abductors),
+            "adductors" => Ok(Muscle::Adductors),
+            "biceps" => Ok(Muscle::Biceps),
+            "calves" => Ok(Muscle::Calves),
+            "chest" => Ok(Muscle::Chest),
+            "forearms" => Ok(Muscle::Forearms),
+            "glutes" => Ok(Muscle::Glutes),
+            "hamstrings" => Ok(Muscle::Hamstrings),
+            "lats" => Ok(Muscle::Lats),
+            "lower back" | "lowerback" => Ok(Muscle::LowerBack),
+            "middle back" | "middleback" => Ok(Muscle::MiddleBack),
+            "neck" => Ok(Muscle::Neck),
+            "quadriceps" => Ok(Muscle::Quadriceps),
+            "shoulders" => Ok(Muscle::Shoulders),
+            "traps" => Ok(Muscle::Traps),
+            "triceps" => Ok(Muscle::Triceps),
+            other => Err(format!("unknown muscle: {other}")),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 pub enum Category {
     #[serde(rename = "powerlifting")]
@@ -391,9 +420,10 @@ impl ExerciseLibrary {
 
     /// Finds all exercises whose name contains the search key.
     pub fn find_by_name(&self, search: &str) -> Vec<&Exercise> {
+        let search = search.to_lowercase();
         self.catalog
             .values()
-            .filter(|exercise| exercise.name.contains(search))
+            .filter(|exercise| exercise.name.to_lowercase().contains(&search))
             .collect()
     }
 }
@@ -415,7 +445,20 @@ pub struct Exercise {
 }
 
 // Exercise methods
-impl Exercise {}
+impl Exercise {
+    pub fn short_display(&self) -> String {
+        let primary_muscles = self
+            .primary_muscles
+            .iter()
+            .map(Muscle::as_str)
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "{:<60} Primary Muscles: {:<20} Level: {}",
+            self.name, primary_muscles, self.level
+        )
+    }
+}
 
 impl fmt::Display for Exercise {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -492,15 +535,81 @@ fn load_exercises(path: &Path) -> Result<HashMap<String, Exercise>, Box<dyn std:
     Ok(exercises)
 }
 
-/// Finds all exercises whose name contains the search key.
-pub fn find_exercises<'a>(
-    search: &str,
-    exercises: &'a HashMap<String, Exercise>,
-) -> Vec<&'a Exercise> {
-    exercises
-        .values()
-        .filter(|exercise| exercise.name.contains(search))
-        .collect()
+/// Treats two words as equal even if one is just the other with a trailing
+/// "s" added, so a search for "curl" also recognizes "curls" as the same word.
+fn words_match(a: &str, b: &str) -> bool {
+    a == b || format!("{a}s") == b || format!("{b}s") == a
+}
+
+// MATCH TIERS:
+// 1. Exact match
+// 2. Prefix match: starts with search term
+// 3. Whole-word match: search term appears as one of the name's words.
+// 4. Substring match: the term appears somewhee in the string.
+pub fn search_similarity_score(n: &str, e_name: &str) -> u32 {
+    let search_term: String = n.to_lowercase();
+    let e_name: String = e_name.to_lowercase();
+    let split_ename: Vec<&str> = e_name.split_whitespace().collect();
+    let split_search_term: Vec<&str> = search_term.split_whitespace().collect();
+    let len_search_term = split_search_term.len();
+
+    // 1. Exact match
+    if search_term == e_name {
+        return 1;
+    }
+
+    // 2. Prefix match:
+    let mut pos = 0;
+    let mut words_equal = 0;
+    for word in &split_ename {
+        if pos < len_search_term && words_match(word, split_search_term[pos]) {
+            words_equal += 1;
+        } else {
+            break;
+        }
+
+        if words_equal == len_search_term {
+            return 2;
+        }
+
+        pos += 1;
+    }
+
+    // whole-word match: does the search phrase appear as a run of consecutive
+    // whole words starting at ANY position in the name, not just position 0?
+    if len_search_term > 0
+        && split_ename.windows(len_search_term).any(|window| {
+            window
+                .iter()
+                .zip(split_search_term.iter())
+                .all(|(a, b)| words_match(a, b))
+        })
+    {
+        return 3;
+    }
+
+    return 4;
+}
+
+pub struct ScoredExercise<'a> {
+    pub exercise: &'a Exercise,
+    pub score: u32,
+}
+
+impl ExerciseLibrary {
+    /// Searches by name, ranking results by match quality (see MATCH TIERS above)
+    /// instead of leaving them in whatever order `find_by_name` happened to return.
+    pub fn smart_search(&self, search_term: &str) -> Vec<ScoredExercise<'_>> {
+        let exercises_found = self.find_by_name(search_term);
+        let mut similarity_scores: Vec<ScoredExercise> = Vec::new();
+
+        for exercise in exercises_found {
+            let score = search_similarity_score(search_term, &exercise.name);
+            similarity_scores.push(ScoredExercise { exercise, score });
+        }
+        similarity_scores.sort_by_key(|scored| scored.score);
+        similarity_scores
+    }
 }
 
 /// Counts how many exercises target each primary muscle.

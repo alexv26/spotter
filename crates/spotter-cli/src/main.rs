@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::Write;
 mod commands;
 
@@ -8,10 +9,13 @@ use spotter_core::exercise::Exercise;
 use spotter_core::exercise::ExerciseLibrary;
 use spotter_core::exercise::Level;
 
-fn getUserInput(cliMsg: String) -> String {
+use crate::commands::Handler;
+use crate::commands::build_command_table;
+
+pub fn getUserInput(cli_msg: String) -> String {
     let mut input = String::new();
 
-    print!("{cliMsg}");
+    print!("{cli_msg}");
     let _ = io::stdout().flush();
     // Read the line from standard input
     io::stdin()
@@ -32,10 +36,32 @@ fn main() {
         }
     };
 
+    // Clear Terminal
+    println!("\x1B[2J\x1B[3J\x1B[1;1H");
+
     // Workout CLI Loop
     println!("===== SPOTTER CLI INTERFACE =====");
+    let commands_table: HashMap<&'static str, Handler> = build_command_table();
+
     loop {
-        let userCmd: String = getUserInput("$ ".to_string());
-        println!("User Command: {userCmd}");
+        let user_cmd: String = getUserInput("$ ".to_string());
+        let split_str: Vec<&str> = user_cmd.split_whitespace().collect();
+        let args: &[&str] = &split_str[..];
+
+        if args.is_empty() {
+            continue;
+        }
+
+        let control_flow = match commands_table.get(args[0]) {
+            Some(fxn) => fxn(&args[1..], &library),
+            None => {
+                println!("Unknown command: {}", args[0]);
+                commands::ControlFlow::Continue
+            }
+        };
+
+        if let commands::ControlFlow::Quit = control_flow {
+            break;
+        }
     }
 }

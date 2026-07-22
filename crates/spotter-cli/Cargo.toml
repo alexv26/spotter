@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 spotter-core = { path = "../spotter-core" }
+rand = "0.8"
