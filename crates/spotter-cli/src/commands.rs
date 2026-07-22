@@ -1,3 +1,9 @@
+//! Command dispatch for the Spotter CLI: maps the first word a user types to
+//! a handler function, via a `HashMap<&str, Handler>` rather than an enum +
+//! `match` (see the design discussion this module grew out of - a fixed enum
+//! would give compile-time-checked dispatch, but this table is easier to keep
+//! extending one command at a time as handlers get filled in).
+
 use std::collections::HashMap;
 
 use rand::seq::SliceRandom;
@@ -41,10 +47,15 @@ pub fn build_command_table() -> HashMap<&'static str, Handler> {
 // Handlers below are unimplemented placeholders (`todo!()` panics if called).
 // Each needs the exact signature of `Handler` to be storable in the table above.
 
+/// `info <exercise id or name>` - planned: look up and print one exercise in full.
+/// Not implemented yet.
 fn handle_info(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
     todo!()
 }
 
+/// `search <term>` (or `search "multi word term"`) - prints every exercise
+/// whose name matches, ranked by [`ExerciseLibrary::smart_search`]'s match-quality
+/// score (best matches first, printed as `score: N`, lower is better).
 fn handle_search(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
     // start with basic implementation of search. add further args later
 
@@ -87,30 +98,41 @@ fn handle_search(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
     ControlFlow::Continue
 }
 
+/// `muscle <muscle>` - planned: list exercises training the given muscle.
+/// Not implemented yet.
 fn handle_muscle(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
     todo!()
 }
 
+/// `equipment <equipment>` - planned: list exercises requiring the given equipment.
+/// Not implemented yet.
 fn handle_equipment(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
     todo!()
 }
 
+/// `category <category>` - planned: list exercises in the given category.
+/// Not implemented yet.
 fn handle_category(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
     todo!()
 }
 
+/// `level <level>` - planned: list exercises at the given difficulty.
+/// Not implemented yet.
 fn handle_level(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
     todo!()
 }
 
+/// `help` - planned: list the available commands. Not implemented yet.
 fn handle_help(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
     todo!()
 }
 
+/// `quit` / `exit` - signals the main loop to stop.
 fn handle_quit(_args: &[&str], _library: &ExerciseLibrary) -> ControlFlow {
     ControlFlow::Quit
 }
 
+/// `clear` - clears the terminal screen and scrollback via raw ANSI escape codes.
 pub fn handle_clear(_args: &[&str], _library: &ExerciseLibrary) -> ControlFlow {
     // \x1B[2J clears the screen.
     // \x1B[3J clears the scrollback buffer.

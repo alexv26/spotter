@@ -1,3 +1,13 @@
+//! Exercise data model and lookup/search over the free-exercise-db catalog.
+//!
+//! [`Exercise`] mirrors one entry from the free-exercise-db JSON files, with its
+//! enum-valued fields (`force`, `level`, `mechanic`, `equipment`, `category`,
+//! and the two muscle lists) parsed via `serde` into the enums defined here
+//! ([`Force`], [`Level`], [`Mechanic`], [`Equipment`], [`Muscle`], [`Category`])
+//! instead of being left as raw strings. [`ExerciseLibrary`] loads the whole
+//! catalog once and builds indices over those enums so lookups like
+//! "every exercise for `Muscle::Biceps`" don't require scanning every exercise.
+
 use std::collections::HashMap;
 use std::fmt;
 use std::fs;
@@ -7,11 +17,15 @@ use std::string::String;
 
 use serde::Deserialize;
 
+/// The type of muscular contraction an exercise trains: pushing, pulling, or holding still.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Force {
+    /// The muscle contracts without the joint moving (e.g. a plank).
     Static,
+    /// The resistance moves toward the body (e.g. a row or curl).
     Pull,
+    /// The resistance moves away from the body (e.g. a press or squat).
     Push,
 }
 
@@ -31,6 +45,7 @@ impl fmt::Display for Force {
     }
 }
 
+/// How much lifting experience an exercise assumes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Level {
@@ -55,10 +70,13 @@ impl fmt::Display for Level {
     }
 }
 
+/// Whether an exercise moves one joint (isolation) or several at once (compound).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Mechanic {
+    /// Moves a single joint, targeting one muscle group (e.g. a bicep curl).
     Isolation,
+    /// Moves multiple joints at once, targeting several muscle groups (e.g. a squat).
     Compound,
 }
 
@@ -77,6 +95,7 @@ impl fmt::Display for Mechanic {
     }
 }
 
+/// The equipment (if any) an exercise requires.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 pub enum Equipment {
     #[serde(rename = "medicine ball")]
@@ -130,6 +149,7 @@ impl fmt::Display for Equipment {
     }
 }
 
+/// A muscle group an exercise can target, as either a primary or secondary mover.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 pub enum Muscle {
     #[serde(rename = "abdominals")]
@@ -169,8 +189,8 @@ pub enum Muscle {
 }
 
 impl Muscle {
-    // so you can do Muscle:ALL. For example:
-    // for muscle in Muscle::ALL
+    /// Every `Muscle` variant, for iterating over all of them, e.g. `for muscle in Muscle::ALL`.
+    /// Hand-maintained: adding or removing a variant means updating this list (and its length) too.
     pub const ALL: [Muscle; 17] = [
         Muscle::Abdominals,
         Muscle::Abductors,
@@ -249,6 +269,7 @@ impl std::str::FromStr for Muscle {
     }
 }
 
+/// The broad style of training an exercise belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 pub enum Category {
     #[serde(rename = "powerlifting")]
@@ -287,15 +308,32 @@ impl fmt::Display for Category {
     }
 }
 
+/// The full exercise catalog plus indices for looking it up by enum field
+/// (muscle, equipment, category, ...) without scanning every exercise.
+///
+/// Each index stores exercise `id`s rather than the exercises themselves or a
+/// shared pointer to them — looking a result up costs one extra `catalog` hash
+/// lookup, but avoids either cloning every `Exercise` into every index it
+/// belongs to, or the self-referential-struct problem a `&Exercise`/`Rc<Exercise>`
+/// index would run into by pointing back into `catalog` on the same struct.
 pub struct ExerciseLibrary {
+    /// Every exercise, keyed by its `id`. The source of truth all the `by_*` indices resolve through.
     pub catalog: HashMap<String, Exercise>,
+    /// `catalog.len()`, cached so callers don't need to compute it themselves.
     pub num_exercises: usize,
+    /// Exercise ids, keyed by each `Muscle` they train as a *primary* mover.
     pub by_primary_muscle: HashMap<Muscle, Vec<String>>,
+    /// Exercise ids, keyed by each `Muscle` they train as a *secondary/assisting* mover.
     pub by_secondary_muscle: HashMap<Muscle, Vec<String>>,
+    /// Exercise ids, keyed by required `Equipment`.
     pub by_equipment: HashMap<Equipment, Vec<String>>,
+    /// Exercise ids, keyed by `Mechanic` (isolation vs. compound).
     pub by_mechanic: HashMap<Mechanic, Vec<String>>,
+    /// Exercise ids, keyed by `Category` (strength, cardio, ...).
     pub by_category: HashMap<Category, Vec<String>>,
+    /// Exercise ids, keyed by `Level` (beginner, intermediate, expert).
     pub by_level: HashMap<Level, Vec<String>>,
+    /// Exercise ids, keyed by `Force` (push, pull, static).
     pub by_force: HashMap<Force, Vec<String>>,
 }
 
@@ -372,6 +410,9 @@ impl ExerciseLibrary {
         }
     }
 
+    /// Turns a list of exercise ids (as stored in the `by_*` indices) into the
+    /// actual `Exercise`s, via `catalog`. `None` (index key not present) and an
+    /// empty list are both treated as "no results" rather than an error.
     fn resolve(&self, ids: Option<&Vec<String>>) -> Vec<&Exercise> {
         ids.map(|ids| ids.iter().filter_map(|id| self.catalog.get(id)).collect())
             .unwrap_or_default()
@@ -398,27 +439,33 @@ impl ExerciseLibrary {
         results
     }
 
+    /// Every exercise that requires `equipment`.
     pub fn find_by_equipment(&self, equipment: Equipment) -> Vec<&Exercise> {
         self.resolve(self.by_equipment.get(&equipment))
     }
 
+    /// Every exercise with the given `mechanic` (isolation vs. compound).
     pub fn find_by_mechanic(&self, mechanic: Mechanic) -> Vec<&Exercise> {
         self.resolve(self.by_mechanic.get(&mechanic))
     }
 
+    /// Every exercise in the given `category` (strength, cardio, ...).
     pub fn find_by_category(&self, category: Category) -> Vec<&Exercise> {
         self.resolve(self.by_category.get(&category))
     }
 
+    /// Every exercise at the given `level` (beginner, intermediate, expert).
     pub fn find_by_level(&self, level: Level) -> Vec<&Exercise> {
         self.resolve(self.by_level.get(&level))
     }
 
+    /// Every exercise with the given `force` (push, pull, static).
     pub fn find_by_force(&self, force: Force) -> Vec<&Exercise> {
         self.resolve(self.by_force.get(&force))
     }
 
-    /// Finds all exercises whose name contains the search key.
+    /// Finds all exercises whose name contains the search key (case-insensitive).
+    /// Results aren't ranked by relevance - see [`ExerciseLibrary::smart_search`] for that.
     pub fn find_by_name(&self, search: &str) -> Vec<&Exercise> {
         let search = search.to_lowercase();
         self.catalog
@@ -428,24 +475,35 @@ impl ExerciseLibrary {
     }
 }
 
+/// One exercise, deserialized directly from a free-exercise-db JSON entry.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Exercise {
+    /// Stable identifier matching the exercise's filename in free-exercise-db (e.g. `"Barbell_Curl"`).
     pub id: String,
+    /// Human-readable name (e.g. `"Barbell Curl"`).
     pub name: String,
+    /// Push, pull, or static - `None` if the source data didn't specify one.
     pub force: Option<Force>,
     pub level: Level,
+    /// Isolation vs. compound - `None` if the source data didn't specify one.
     pub mechanic: Option<Mechanic>,
+    /// Required equipment, if any.
     pub equipment: Option<Equipment>,
     pub primary_muscles: Vec<Muscle>,
+    /// Muscles trained as assisting movers; can be empty.
     pub secondary_muscles: Vec<Muscle>,
+    /// Step-by-step instructions, in order.
     pub instructions: Vec<String>,
     pub category: Category,
+    /// Relative image paths (e.g. `"Barbell_Curl/0.jpg"`), as shipped by free-exercise-db.
     pub images: Vec<String>,
 }
 
-// Exercise methods
 impl Exercise {
+    /// A single-line summary (name, primary muscles, level) for listing many
+    /// exercises at once - e.g. search results - where the full boxed `Display`
+    /// output would be too long to scan.
     pub fn short_display(&self) -> String {
         let primary_muscles = self
             .primary_muscles
@@ -507,8 +565,11 @@ impl fmt::Display for Exercise {
     }
 }
 
-/// Loads every exercise from free-exercise-db's separated .json exercise files`.
-/// Path = path to folder containing all .json files.
+/// Loads every exercise from free-exercise-db's per-exercise `.json` files.
+///
+/// `path` is the directory containing those files (e.g. free-exercise-db's
+/// `exercises/` folder) - non-`.json` entries and subdirectories are skipped.
+/// Exercises are keyed by their `id` field, not their filename.
 fn load_exercises(path: &Path) -> Result<HashMap<String, Exercise>, Box<dyn std::error::Error>> {
     let mut exercises: HashMap<String, Exercise> = HashMap::new();
 
@@ -541,11 +602,19 @@ fn words_match(a: &str, b: &str) -> bool {
     a == b || format!("{a}s") == b || format!("{b}s") == a
 }
 
-// MATCH TIERS:
-// 1. Exact match
-// 2. Prefix match: starts with search term
-// 3. Whole-word match: search term appears as one of the name's words.
-// 4. Substring match: the term appears somewhee in the string.
+/// Scores how well `e_name` matches search term `n`, lower is a better match:
+///
+/// 1. Exact match - `e_name` equals `n` outright.
+/// 2. Prefix match - `e_name` starts with `n`, word for word.
+/// 3. Whole-word match - `n` appears as a run of consecutive whole words
+///    somewhere in `e_name` (not necessarily at the start).
+/// 4. Substring match - `n` appears somewhere in `e_name`, but not aligned to
+///    word boundaries (everything [`ExerciseLibrary::find_by_name`] treats as
+///    equally good already gets this tier).
+///
+/// Word comparisons tolerate a trailing "s" mismatch in either direction (see
+/// the private `words_match` helper below), so plurals like "curls" count as
+/// the same word as "curl".
 pub fn search_similarity_score(n: &str, e_name: &str) -> u32 {
     let search_term: String = n.to_lowercase();
     let e_name: String = e_name.to_lowercase();
@@ -591,6 +660,8 @@ pub fn search_similarity_score(n: &str, e_name: &str) -> u32 {
     return 4;
 }
 
+/// One [`ExerciseLibrary::smart_search`] result: an exercise paired with its
+/// [`search_similarity_score`] (lower is a better match).
 pub struct ScoredExercise<'a> {
     pub exercise: &'a Exercise,
     pub score: u32,
