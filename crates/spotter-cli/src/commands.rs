@@ -7,9 +7,10 @@
 use std::collections::HashMap;
 
 use rand::seq::SliceRandom;
-use spotter_core::exercise::{Exercise, ExerciseLibrary, Muscle};
+use spotter_core::exercise::{Category, Equipment, Exercise, ExerciseLibrary, Force, Level, Mechanic, Muscle};
 
 use crate::input::{ArgType, getUserInput, parseArgs};
+use std::str::FromStr;
 
 /// What the main loop should do after a command runs.
 /// A hashmap-of-functions has no `match` to fall through to a `Quit` arm,
@@ -40,6 +41,8 @@ pub fn build_command_table() -> HashMap<&'static str, Handler> {
     commands.insert("exit", handle_quit);
     commands.insert("random", handle_random);
     commands.insert("clear", handle_clear);
+    commands.insert("force", handle_force);
+    commands.insert("mechanic", handle_mechanic);
 
     commands
 }
@@ -102,28 +105,299 @@ fn handle_search(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
     ControlFlow::Continue
 }
 
-/// `muscle <muscle>` - planned: list exercises training the given muscle.
-/// Not implemented yet.
+/// `muscle <muscle>` - lists exercises training the given muscle.
 fn handle_muscle(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
-    todo!()
+    let parsed_args = match parseArgs(args, None) {
+        Ok(pargs) => pargs,
+        Err(err) => {
+            println!("{}", err);
+            return ControlFlow::Continue
+        }
+    };
+
+    if parsed_args.len() != 1 {
+        println!("Error: function should only take one argument. Multi-word arguments should go in quotes.");
+        println!("Usage: muscle \"search_muscle\"");
+        return ControlFlow::Continue;
+    }
+
+    // If there are any flags in parsed_args, error:
+    if parsed_args
+        .iter()
+        .any(|arg| matches!(arg, ArgType::Flag(_) | ArgType::Option { .. }))
+    {
+        println!("Error: invalid flag.");
+        return ControlFlow::Continue;
+    }
+
+    let muscle : Muscle = match &parsed_args[0] {
+        ArgType::Positional(m) => match Muscle::from_str(&m) {
+            Ok(mscl) => mscl,
+            Err(_) => {
+                println!("Error: invalid muscle.");
+                return ControlFlow::Continue;
+            }
+        },
+        _ => {
+            println!("Error: invalid input.");
+            println!("Usage: muscle <search_muscle>");
+            return ControlFlow::Continue;
+        }
+    };
+
+
+    let mut counter = 1;
+    for exercise in library.find_by_muscle(muscle) {
+        println!("{counter:>3}: {}", Exercise::short_display(exercise));
+        counter += 1;
+    }
+
+    ControlFlow::Continue
 }
 
-/// `equipment <equipment>` - planned: list exercises requiring the given equipment.
-/// Not implemented yet.
+/// `equipment <equipment>` - lists exercises requiring the given equipment.
 fn handle_equipment(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
-    todo!()
+    let parsed_args = match parseArgs(args, None) {
+        Ok(pargs) => pargs,
+        Err(err) => {
+            println!("{}", err);
+            return ControlFlow::Continue
+        }
+    };
+
+    if parsed_args.len() != 1 {
+        println!("Error: function should only take one argument. Multi-word arguments should go in quotes.");
+        println!("Usage: equipment \"search_equipment\"");
+        return ControlFlow::Continue;
+    }
+
+    // If there are any flags in parsed_args, error:
+    if parsed_args
+        .iter()
+        .any(|arg| matches!(arg, ArgType::Flag(_) | ArgType::Option { .. }))
+    {
+        println!("Error: invalid flag.");
+        return ControlFlow::Continue;
+    }
+
+    let equipment: Equipment = match &parsed_args[0] {
+        ArgType::Positional(e) => match Equipment::from_str(e) {
+            Ok(eq) => eq,
+            Err(_) => {
+                println!("Error: invalid equipment.");
+                return ControlFlow::Continue;
+            }
+        },
+        _ => {
+            println!("Error: invalid input.");
+            println!("Usage: equipment <search_equipment>");
+            return ControlFlow::Continue;
+        }
+    };
+
+    let mut counter = 1;
+    for exercise in library.find_by_equipment(equipment) {
+        println!("{counter:>3}: {}", Exercise::short_display(exercise));
+        counter += 1;
+    }
+
+    ControlFlow::Continue
 }
 
-/// `category <category>` - planned: list exercises in the given category.
-/// Not implemented yet.
+/// `category <category>` - lists exercises in the given category.
 fn handle_category(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
-    todo!()
+    let parsed_args = match parseArgs(args, None) {
+        Ok(pargs) => pargs,
+        Err(err) => {
+            println!("{}", err);
+            return ControlFlow::Continue
+        }
+    };
+
+    if parsed_args.len() != 1 {
+        println!("Error: function should only take one argument. Multi-word arguments should go in quotes.");
+        println!("Usage: category \"search_category\"");
+        return ControlFlow::Continue;
+    }
+
+    // If there are any flags in parsed_args, error:
+    if parsed_args
+        .iter()
+        .any(|arg| matches!(arg, ArgType::Flag(_) | ArgType::Option { .. }))
+    {
+        println!("Error: invalid flag.");
+        return ControlFlow::Continue;
+    }
+
+    let category: Category = match &parsed_args[0] {
+        ArgType::Positional(c) => match Category::from_str(c) {
+            Ok(cat) => cat,
+            Err(_) => {
+                println!("Error: invalid category.");
+                return ControlFlow::Continue;
+            }
+        },
+        _ => {
+            println!("Error: invalid input.");
+            println!("Usage: category <search_category>");
+            return ControlFlow::Continue;
+        }
+    };
+
+    let mut counter = 1;
+    for exercise in library.find_by_category(category) {
+        println!("{counter:>3}: {}", Exercise::short_display(exercise));
+        counter += 1;
+    }
+
+    ControlFlow::Continue
 }
 
-/// `level <level>` - planned: list exercises at the given difficulty.
-/// Not implemented yet.
+/// `level <level>` - lists exercises at the given difficulty.
 fn handle_level(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
-    todo!()
+    let parsed_args = match parseArgs(args, None) {
+        Ok(pargs) => pargs,
+        Err(err) => {
+            println!("{}", err);
+            return ControlFlow::Continue
+        }
+    };
+
+    if parsed_args.len() != 1 {
+        println!("Error: function should only take one argument. Multi-word arguments should go in quotes.");
+        println!("Usage: level \"search_level\"");
+        return ControlFlow::Continue;
+    }
+
+    // If there are any flags in parsed_args, error:
+    if parsed_args
+        .iter()
+        .any(|arg| matches!(arg, ArgType::Flag(_) | ArgType::Option { .. }))
+    {
+        println!("Error: invalid flag.");
+        return ControlFlow::Continue;
+    }
+
+    let level: Level = match &parsed_args[0] {
+        ArgType::Positional(l) => match Level::from_str(l) {
+            Ok(lvl) => lvl,
+            Err(_) => {
+                println!("Error: invalid level.");
+                return ControlFlow::Continue;
+            }
+        },
+        _ => {
+            println!("Error: invalid input.");
+            println!("Usage: level <search_level>");
+            return ControlFlow::Continue;
+        }
+    };
+
+    let mut counter = 1;
+    for exercise in library.find_by_level(level) {
+        println!("{counter:>3}: {}", Exercise::short_display(exercise));
+        counter += 1;
+    }
+
+    ControlFlow::Continue
+}
+
+/// `force <force>` - lists exercises with the given force (push, pull, static).
+fn handle_force(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
+    let parsed_args = match parseArgs(args, None) {
+        Ok(pargs) => pargs,
+        Err(err) => {
+            println!("{}", err);
+            return ControlFlow::Continue
+        }
+    };
+
+    if parsed_args.len() != 1 {
+        println!("Error: function should only take one argument. Multi-word arguments should go in quotes.");
+        println!("Usage: force \"search_force\"");
+        return ControlFlow::Continue;
+    }
+
+    // If there are any flags in parsed_args, error:
+    if parsed_args
+        .iter()
+        .any(|arg| matches!(arg, ArgType::Flag(_) | ArgType::Option { .. }))
+    {
+        println!("Error: invalid flag.");
+        return ControlFlow::Continue;
+    }
+
+    let force: Force = match &parsed_args[0] {
+        ArgType::Positional(f) => match Force::from_str(f) {
+            Ok(frc) => frc,
+            Err(_) => {
+                println!("Error: invalid force.");
+                return ControlFlow::Continue;
+            }
+        },
+        _ => {
+            println!("Error: invalid input.");
+            println!("Usage: force <search_force>");
+            return ControlFlow::Continue;
+        }
+    };
+
+    let mut counter = 1;
+    for exercise in library.find_by_force(force) {
+        println!("{counter:>3}: {}", Exercise::short_display(exercise));
+        counter += 1;
+    }
+
+    ControlFlow::Continue
+}
+
+/// `mechanic <mechanic>` - lists exercises with the given mechanic (isolation, compound).
+fn handle_mechanic(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
+    let parsed_args = match parseArgs(args, None) {
+        Ok(pargs) => pargs,
+        Err(err) => {
+            println!("{}", err);
+            return ControlFlow::Continue
+        }
+    };
+
+    if parsed_args.len() != 1 {
+        println!("Error: function should only take one argument. Multi-word arguments should go in quotes.");
+        println!("Usage: mechanic \"search_mechanic\"");
+        return ControlFlow::Continue;
+    }
+
+    // If there are any flags in parsed_args, error:
+    if parsed_args
+        .iter()
+        .any(|arg| matches!(arg, ArgType::Flag(_) | ArgType::Option { .. }))
+    {
+        println!("Error: invalid flag.");
+        return ControlFlow::Continue;
+    }
+
+    let mechanic: Mechanic = match &parsed_args[0] {
+        ArgType::Positional(m) => match Mechanic::from_str(m) {
+            Ok(mech) => mech,
+            Err(_) => {
+                println!("Error: invalid mechanic.");
+                return ControlFlow::Continue;
+            }
+        },
+        _ => {
+            println!("Error: invalid input.");
+            println!("Usage: mechanic <search_mechanic>");
+            return ControlFlow::Continue;
+        }
+    };
+
+    let mut counter = 1;
+    for exercise in library.find_by_mechanic(mechanic) {
+        println!("{counter:>3}: {}", Exercise::short_display(exercise));
+        counter += 1;
+    }
+
+    ControlFlow::Continue
 }
 
 /// `help` - planned: list the available commands. Not implemented yet.

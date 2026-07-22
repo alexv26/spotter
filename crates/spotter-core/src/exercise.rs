@@ -45,6 +45,19 @@ impl fmt::Display for Force {
     }
 }
 
+impl std::str::FromStr for Force {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "static" => Ok(Force::Static),
+            "pull" => Ok(Force::Pull),
+            "push" => Ok(Force::Push),
+            other => Err(format!("unknown force: {other}")),
+        }
+    }
+}
+
 /// How much lifting experience an exercise assumes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -70,6 +83,19 @@ impl fmt::Display for Level {
     }
 }
 
+impl std::str::FromStr for Level {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "beginner" => Ok(Level::Beginner),
+            "intermediate" => Ok(Level::Intermediate),
+            "expert" => Ok(Level::Expert),
+            other => Err(format!("unknown level: {other}")),
+        }
+    }
+}
+
 /// Whether an exercise moves one joint (isolation) or several at once (compound).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -92,6 +118,18 @@ impl Mechanic {
 impl fmt::Display for Mechanic {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
+    }
+}
+
+impl std::str::FromStr for Mechanic {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "isolation" => Ok(Mechanic::Isolation),
+            "compound" => Ok(Mechanic::Compound),
+            other => Err(format!("unknown mechanic: {other}")),
+        }
     }
 }
 
@@ -146,6 +184,28 @@ impl Equipment {
 impl fmt::Display for Equipment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
+    }
+}
+
+impl std::str::FromStr for Equipment {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "medicine ball" => Ok(Equipment::MedicineBall),
+            "dumbbell" => Ok(Equipment::Dumbbell),
+            "body only" => Ok(Equipment::BodyOnly),
+            "bands" => Ok(Equipment::Bands),
+            "kettlebells" => Ok(Equipment::Kettlebells),
+            "foam roll" => Ok(Equipment::FoamRoll),
+            "cable" => Ok(Equipment::Cable),
+            "machine" => Ok(Equipment::Machine),
+            "barbell" => Ok(Equipment::Barbell),
+            "exercise ball" => Ok(Equipment::ExerciseBall),
+            "e-z curl bar" => Ok(Equipment::EZCurlBar),
+            "other" => Ok(Equipment::Other),
+            other => Err(format!("unknown equipment: {other}")),
+        }
     }
 }
 
@@ -244,27 +304,21 @@ impl std::str::FromStr for Muscle {
     type Err = String;
 
     /// The reverse of `as_str`: turns user-typed text like "biceps" back into
-    /// a `Muscle`. Case-insensitive, since CLI input shouldn't have to match exactly.
+    /// a `Muscle`. Case-insensitive, and tolerates a trailing "s" mismatch
+    /// either way via `words_match` - e.g. "bicep" also matches `Muscle::Biceps`.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "abdominals" => Ok(Muscle::Abdominals),
-            "abductors" => Ok(Muscle::Abductors),
-            "adductors" => Ok(Muscle::Adductors),
-            "biceps" => Ok(Muscle::Biceps),
-            "calves" => Ok(Muscle::Calves),
-            "chest" => Ok(Muscle::Chest),
-            "forearms" => Ok(Muscle::Forearms),
-            "glutes" => Ok(Muscle::Glutes),
-            "hamstrings" => Ok(Muscle::Hamstrings),
-            "lats" => Ok(Muscle::Lats),
-            "lower back" | "lowerback" => Ok(Muscle::LowerBack),
-            "middle back" | "middleback" => Ok(Muscle::MiddleBack),
-            "neck" => Ok(Muscle::Neck),
-            "quadriceps" => Ok(Muscle::Quadriceps),
-            "shoulders" => Ok(Muscle::Shoulders),
-            "traps" => Ok(Muscle::Traps),
-            "triceps" => Ok(Muscle::Triceps),
-            other => Err(format!("unknown muscle: {other}")),
+        let lower = s.to_lowercase();
+
+        for muscle in Muscle::ALL {
+            if words_match(&lower, muscle.as_str()) {
+                return Ok(muscle);
+            }
+        }
+
+        match lower.as_str() {
+            "lowerback" => Ok(Muscle::LowerBack),
+            "middleback" => Ok(Muscle::MiddleBack),
+            _ => Err(format!("unknown muscle: {s}")),
         }
     }
 }
@@ -305,6 +359,23 @@ impl Category {
 impl fmt::Display for Category {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
+    }
+}
+
+impl std::str::FromStr for Category {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "powerlifting" => Ok(Category::Powerlifting),
+            "strength" => Ok(Category::Strength),
+            "stretching" => Ok(Category::Stretching),
+            "cardio" => Ok(Category::Cardio),
+            "olympic weightlifting" => Ok(Category::OlympicWeightlifting),
+            "strongman" => Ok(Category::Strongman),
+            "plyometrics" => Ok(Category::Plyometrics),
+            other => Err(format!("unknown category: {other}")),
+        }
     }
 }
 
@@ -430,13 +501,7 @@ impl ExerciseLibrary {
 
     /// Every exercise that trains `muscle`, primary or secondary.
     pub fn find_by_muscle(&self, muscle: Muscle) -> Vec<&Exercise> {
-        let mut results = self.find_by_primary_muscle(muscle);
-        for exercise in self.find_by_secondary_muscle(muscle) {
-            if !results.iter().any(|e| e.id == exercise.id) {
-                results.push(exercise);
-            }
-        }
-        results
+        self.resolve(self.by_primary_muscle.get(&muscle))
     }
 
     /// Every exercise that requires `equipment`.
