@@ -7,9 +7,11 @@
 use std::collections::HashMap;
 
 use rand::seq::SliceRandom;
-use spotter_core::exercise::{Category, Equipment, Exercise, ExerciseLibrary, Force, Level, Mechanic, Muscle};
+use spotter_core::exercise::{
+    Category, Equipment, Exercise, ExerciseLibrary, Force, Level, Mechanic, Muscle,
+};
 
-use crate::input::{ArgType, getUserInput, parseArgs};
+use crate::input::{ArgType, get_flag_value, getUserInput, parseArgs};
 use std::str::FromStr;
 
 /// What the main loop should do after a command runs.
@@ -47,8 +49,9 @@ pub fn build_command_table() -> HashMap<&'static str, Handler> {
     commands
 }
 
-// Handlers below are unimplemented placeholders (`todo!()` panics if called).
-// Each needs the exact signature of `Handler` to be storable in the table above.
+// Every handler below needs the exact signature of `Handler` to be storable
+// in the table above. `handle_info` and `handle_help` are still `todo!()`
+// placeholders (panic if called); everything else is implemented.
 
 /// `info <exercise id or name>` - planned: look up and print one exercise in full.
 /// Not implemented yet.
@@ -59,13 +62,17 @@ fn handle_info(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
 /// `search <term>` (or `search "multi word term"`) - prints every exercise
 /// whose name matches, ranked by [`ExerciseLibrary::smart_search`]'s match-quality
 /// score (best matches first, printed as `score: N`, lower is better).
+///
+/// Accepts two optional value-taking flags to narrow results before ranking:
+/// `-level <level>` and `-equipment <equipment>` (e.g.
+/// `search curl -level beginner -equipment barbell`).
 fn handle_search(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
     // start with basic implementation of search. add further args later
-    let parsed_args = match parseArgs(args, None) {
+    let parsed_args = match parseArgs(args, Some(&["-level", "-equipment"])) {
         Ok(pargs) => pargs,
         Err(err) => {
             println!("{}", err);
-            return ControlFlow::Continue
+            return ControlFlow::Continue;
         }
     };
     if parsed_args.len() < 1 {
@@ -73,32 +80,53 @@ fn handle_search(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
         return ControlFlow::Continue;
     }
 
-    // If there are any flags in parsed_args, error:
-    if parsed_args
+    let positionals: Vec<&str> = parsed_args
         .iter()
-        .any(|arg| matches!(arg, ArgType::Flag(_) | ArgType::Option { .. }))
-    {
-        println!("Error: invalid flag.");
+        .filter_map(|arg| match arg {
+            ArgType::Positional(s) => Some(s.as_str()),
+            _ => None,
+        })
+        .collect();
+
+    if positionals.is_empty() {
+        println!("Error: expected a search term.");
+        return ControlFlow::Continue;
+    } else if positionals.len() > 1 {
+        println!("Error: multi-word search terms should be in quotations.");
         return ControlFlow::Continue;
     }
 
-    let mut words: Vec<&str> = Vec::new();
-    for arg in &parsed_args {
-        if let ArgType::Positional(word) = arg {
-            words.push(word);
-        }
-    }
-    let search_term = words.join(" ");
+    let search_term = positionals.join(" ");
 
-    let similarity_scores = library.smart_search(&search_term);
+    // Adding a new filterable flag is one more line here (plus registering it
+    // above in the `parseArgs` call, and one more `&&` clause in the closure below).
+    let level: Option<Level> = match get_flag_value(&parsed_args, "-level") {
+        Ok(value) => value,
+        Err(err) => {
+            println!("{err}");
+            return ControlFlow::Continue;
+        }
+    };
+    let equipment: Option<Equipment> = match get_flag_value(&parsed_args, "-equipment") {
+        Ok(value) => value,
+        Err(err) => {
+            println!("{err}");
+            return ControlFlow::Continue;
+        }
+    };
+
+    let similarity_scores = library.smart_search(&search_term, |exercise| {
+        level.map_or(true, |l| exercise.level == l)
+            && equipment.map_or(true, |e| exercise.equipment == Some(e))
+    });
+
+    if similarity_scores.len() == 0 {
+        println!("No matches found.");
+    }
 
     let mut counter = 1;
     for scored in similarity_scores {
-        println!(
-            "{counter:>3}: {}, score: {}",
-            Exercise::short_display(scored.exercise),
-            scored.score
-        );
+        println!("{counter:>3}: {}", Exercise::short_display(scored.exercise));
         counter += 1;
     }
 
@@ -111,12 +139,14 @@ fn handle_muscle(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
         Ok(pargs) => pargs,
         Err(err) => {
             println!("{}", err);
-            return ControlFlow::Continue
+            return ControlFlow::Continue;
         }
     };
 
     if parsed_args.len() != 1 {
-        println!("Error: function should only take one argument. Multi-word arguments should go in quotes.");
+        println!(
+            "Error: function should only take one argument. Multi-word arguments should go in quotes."
+        );
         println!("Usage: muscle \"search_muscle\"");
         return ControlFlow::Continue;
     }
@@ -130,7 +160,7 @@ fn handle_muscle(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
         return ControlFlow::Continue;
     }
 
-    let muscle : Muscle = match &parsed_args[0] {
+    let muscle: Muscle = match &parsed_args[0] {
         ArgType::Positional(m) => match Muscle::from_str(&m) {
             Ok(mscl) => mscl,
             Err(_) => {
@@ -144,7 +174,6 @@ fn handle_muscle(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
             return ControlFlow::Continue;
         }
     };
-
 
     let mut counter = 1;
     for exercise in library.find_by_muscle(muscle) {
@@ -161,12 +190,14 @@ fn handle_equipment(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
         Ok(pargs) => pargs,
         Err(err) => {
             println!("{}", err);
-            return ControlFlow::Continue
+            return ControlFlow::Continue;
         }
     };
 
     if parsed_args.len() != 1 {
-        println!("Error: function should only take one argument. Multi-word arguments should go in quotes.");
+        println!(
+            "Error: function should only take one argument. Multi-word arguments should go in quotes."
+        );
         println!("Usage: equipment \"search_equipment\"");
         return ControlFlow::Continue;
     }
@@ -210,12 +241,14 @@ fn handle_category(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
         Ok(pargs) => pargs,
         Err(err) => {
             println!("{}", err);
-            return ControlFlow::Continue
+            return ControlFlow::Continue;
         }
     };
 
     if parsed_args.len() != 1 {
-        println!("Error: function should only take one argument. Multi-word arguments should go in quotes.");
+        println!(
+            "Error: function should only take one argument. Multi-word arguments should go in quotes."
+        );
         println!("Usage: category \"search_category\"");
         return ControlFlow::Continue;
     }
@@ -259,12 +292,14 @@ fn handle_level(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
         Ok(pargs) => pargs,
         Err(err) => {
             println!("{}", err);
-            return ControlFlow::Continue
+            return ControlFlow::Continue;
         }
     };
 
     if parsed_args.len() != 1 {
-        println!("Error: function should only take one argument. Multi-word arguments should go in quotes.");
+        println!(
+            "Error: function should only take one argument. Multi-word arguments should go in quotes."
+        );
         println!("Usage: level \"search_level\"");
         return ControlFlow::Continue;
     }
@@ -308,12 +343,14 @@ fn handle_force(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
         Ok(pargs) => pargs,
         Err(err) => {
             println!("{}", err);
-            return ControlFlow::Continue
+            return ControlFlow::Continue;
         }
     };
 
     if parsed_args.len() != 1 {
-        println!("Error: function should only take one argument. Multi-word arguments should go in quotes.");
+        println!(
+            "Error: function should only take one argument. Multi-word arguments should go in quotes."
+        );
         println!("Usage: force \"search_force\"");
         return ControlFlow::Continue;
     }
@@ -357,12 +394,14 @@ fn handle_mechanic(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
         Ok(pargs) => pargs,
         Err(err) => {
             println!("{}", err);
-            return ControlFlow::Continue
+            return ControlFlow::Continue;
         }
     };
 
     if parsed_args.len() != 1 {
-        println!("Error: function should only take one argument. Multi-word arguments should go in quotes.");
+        println!(
+            "Error: function should only take one argument. Multi-word arguments should go in quotes."
+        );
         println!("Usage: mechanic \"search_mechanic\"");
         return ControlFlow::Continue;
     }

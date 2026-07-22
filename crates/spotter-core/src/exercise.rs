@@ -48,6 +48,7 @@ impl fmt::Display for Force {
 impl std::str::FromStr for Force {
     type Err = String;
 
+    /// The reverse of `as_str`: turns user-typed text like "push" back into a `Force`.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "static" => Ok(Force::Static),
@@ -86,6 +87,7 @@ impl fmt::Display for Level {
 impl std::str::FromStr for Level {
     type Err = String;
 
+    /// The reverse of `as_str`: turns user-typed text like "beginner" back into a `Level`.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "beginner" => Ok(Level::Beginner),
@@ -124,6 +126,7 @@ impl fmt::Display for Mechanic {
 impl std::str::FromStr for Mechanic {
     type Err = String;
 
+    /// The reverse of `as_str`: turns user-typed text like "compound" back into a `Mechanic`.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "isolation" => Ok(Mechanic::Isolation),
@@ -190,6 +193,7 @@ impl fmt::Display for Equipment {
 impl std::str::FromStr for Equipment {
     type Err = String;
 
+    /// The reverse of `as_str`: turns user-typed text like "barbell" back into an `Equipment`.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "medicine ball" => Ok(Equipment::MedicineBall),
@@ -365,6 +369,7 @@ impl fmt::Display for Category {
 impl std::str::FromStr for Category {
     type Err = String;
 
+    /// The reverse of `as_str`: turns user-typed text like "strength" back into a `Category`.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "powerlifting" => Ok(Category::Powerlifting),
@@ -735,11 +740,25 @@ pub struct ScoredExercise<'a> {
 impl ExerciseLibrary {
     /// Searches by name, ranking results by match quality (see MATCH TIERS above)
     /// instead of leaving them in whatever order `find_by_name` happened to return.
-    pub fn smart_search(&self, search_term: &str) -> Vec<ScoredExercise<'_>> {
+    /// `filter` decides whether a candidate exercise stays in the results at all,
+    /// before match-quality scoring - e.g. `|e| e.level == Level::Beginner`.
+    /// This never needs to change to support a new filterable flag: whoever
+    /// calls `smart_search` builds whatever filter logic it needs and passes it
+    /// in, so this function's signature stays the same no matter how many
+    /// flags get added on the caller's side.
+    pub fn smart_search(
+        &self,
+        search_term: &str,
+        filter: impl Fn(&Exercise) -> bool,
+    ) -> Vec<ScoredExercise<'_>> {
         let exercises_found = self.find_by_name(search_term);
         let mut similarity_scores: Vec<ScoredExercise> = Vec::new();
 
         for exercise in exercises_found {
+            if !filter(exercise) {
+                continue;
+            }
+
             let score = search_similarity_score(search_term, &exercise.name);
             similarity_scores.push(ScoredExercise { exercise, score });
         }

@@ -16,8 +16,12 @@ recommendation/analysis features.
 ```
 spotter/
 ├── crates/
-│   ├── spotter-core/   # domain logic: Exercise data model, ExerciseLibrary lookups/search
-│   └── spotter-cli/    # the CLI itself: input loop + command dispatch
+│   ├── spotter-core/          # domain logic: Exercise data model, ExerciseLibrary lookups/search
+│   └── spotter-cli/
+│       └── src/
+│           ├── main.rs        # entry point: loads the library, runs the read/dispatch loop
+│           ├── commands.rs    # command table + one handle_* function per command
+│           └── input.rs       # raw terminal input -> ArgType tokens (quotes, flags, positionals)
 └── data/
     └── free-exercise-db/   # exercise data (git submodule)
 ```
@@ -49,18 +53,27 @@ the repo root, so it won't find it if you `cd` into a crate directory first):
 cargo run -p spotter-cli
 ```
 
-This drops you into an interactive prompt (`$`). A few commands that work today:
+This drops you into an interactive prompt (`$`). Commands that work today:
 
 | Command | What it does |
 |---|---|
-| `search <term>` | Finds exercises by name, best matches first. Wrap multi-word terms in quotes: `search "barbell curl"` |
+| `search <term>` | Finds exercises by name, ranked by match quality, best first. Wrap multi-word terms in quotes (`search "barbell curl"`) or leave them unquoted (`search barbell curl`) — both work. Narrow results with `-level <level>` and/or `-equipment <equipment>`, e.g. `search curl -level beginner -equipment barbell` |
+| `muscle <muscle>` | Lists exercises training the given muscle (primary or secondary). Tolerates singular/plural (`bicep` and `biceps` both work) |
+| `equipment <equipment>` | Lists exercises requiring the given equipment |
+| `category <category>` | Lists exercises in the given category (strength, cardio, ...) |
+| `level <level>` | Lists exercises at the given difficulty |
+| `force <force>` | Lists exercises with the given force (push, pull, static) |
+| `mechanic <mechanic>` | Lists exercises with the given mechanic (isolation, compound) |
 | `random` | Shows a random exercise. `random <muscle>` (e.g. `random biceps`) narrows it to one muscle |
 | `clear` | Clears the terminal |
 | `quit` / `exit` | Exits |
 
-Several other commands (`info`, `muscle`, `equipment`, `category`, `level`,
-`help`) are wired into the command table but not implemented yet — typing them
-will panic with a `not yet implemented` message. That's expected; they're next.
+`muscle`/`equipment`/`category`/`level`/`force`/`mechanic` each take exactly
+one argument — quote it if it's multiple words (e.g. `muscle "lower back"`).
+
+`info` and `help` are wired into the command table but not implemented yet —
+typing them will panic with a `not yet implemented` message. That's expected;
+they're next.
 
 ## Documentation
 
