@@ -11,7 +11,7 @@ use spotter_core::exercise::{
     Category, Equipment, Exercise, ExerciseLibrary, Force, Level, Mechanic, Muscle,
 };
 
-use crate::input::{ArgType, get_flag_value, getUserInput, parseArgs};
+use crate::input::{ArgType, get_flag_value, get_user_input, parse_args};
 use std::str::FromStr;
 
 /// What the main loop should do after a command runs.
@@ -56,7 +56,83 @@ pub fn build_command_table() -> HashMap<&'static str, Handler> {
 /// `info <exercise id or name>` - planned: look up and print one exercise in full.
 /// Not implemented yet.
 fn handle_info(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
-    todo!()
+    // args = exercise name (should only be ONE arg)
+    let pargs = match parse_args(args, None) {
+        Ok(val) => val,
+        Err(e) => {
+            println!("{e}");
+            return ControlFlow::Quit;
+        }
+    };
+
+    if pargs.len() != 1 {
+        println!(
+            "Error: info takes exactly one argument. Multi-word exercise names should be wrapped in quotes."
+        );
+        println!("Usage: info \"exercise name\"");
+        return ControlFlow::Continue;
+    }
+
+    // Get target exercise from pargs.
+    let target_exercise = match pargs.get(0) {
+        Some(e) => match e {
+            ArgType::Positional(s) => s,
+            _ => {
+                println!("Error: info only accepts an exercise name, not flags.");
+                return ControlFlow::Quit;
+            }
+        },
+        None => {
+            println!("Error: no exercise name provided.");
+            return ControlFlow::Quit;
+        }
+    };
+
+    // Check that the target exercise is a valid exercise (and there is only one)
+    //TODO: what if one exercise's name is PART of another one? Like: "biceps curl" and "barbell biceps curl"
+    let found_exercises = library.find_by_name(target_exercise);
+    // If none found, print error
+    if found_exercises.len() < 1 {
+        println!("Error: no exercises matched that name.");
+        return ControlFlow::Continue;
+    } else if found_exercises.len() > 1 {
+        // IF more than one exercise, print the list and have the user input which one they are referencing
+        let mut counter = 1;
+
+        for e in &found_exercises {
+            println!("{counter:>3}: {}", Exercise::short_display(e));
+            counter += 1;
+        }
+        let user_in = get_user_input("Multiple exercises matched - enter the number of the one you meant: ".to_string());
+        let mut index : usize = user_in.parse().unwrap();
+
+        if index > counter - 1 || index < 1 {
+            println!("Error: invalid selection.");
+        } else {
+            index -= 1;
+            let matching_exercise = match found_exercises.get(index) {
+            Some(e) => e,
+            None => {
+                println!("Error: no matching exercise found.");
+                return ControlFlow::Continue;
+            }
+        };
+        println!("{matching_exercise}");
+        }
+        
+
+    } else {
+        let matching_exercise = match found_exercises.get(0) {
+            Some(e) => e,
+            None => {
+                println!("Error: no matching exercise found.");
+                return ControlFlow::Continue;
+            }
+        };
+        println!("{matching_exercise}");
+    }
+
+    return ControlFlow::Continue;
 }
 
 /// `search <term>` (or `search "multi word term"`) - prints every exercise
@@ -68,7 +144,7 @@ fn handle_info(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
 /// `search curl -level beginner -equipment barbell`).
 fn handle_search(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
     // start with basic implementation of search. add further args later
-    let parsed_args = match parseArgs(args, Some(&["-level", "-equipment"])) {
+    let parsed_args = match parse_args(args, Some(&["-level", "-equipment"])) {
         Ok(pargs) => pargs,
         Err(err) => {
             println!("{}", err);
@@ -99,7 +175,7 @@ fn handle_search(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
     let search_term = positionals.join(" ");
 
     // Adding a new filterable flag is one more line here (plus registering it
-    // above in the `parseArgs` call, and one more `&&` clause in the closure below).
+    // above in the `parse_args` call, and one more `&&` clause in the closure below).
     let level: Option<Level> = match get_flag_value(&parsed_args, "-level") {
         Ok(value) => value,
         Err(err) => {
@@ -135,7 +211,7 @@ fn handle_search(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
 
 /// `muscle <muscle>` - lists exercises training the given muscle.
 fn handle_muscle(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
-    let parsed_args = match parseArgs(args, None) {
+    let parsed_args = match parse_args(args, None) {
         Ok(pargs) => pargs,
         Err(err) => {
             println!("{}", err);
@@ -186,7 +262,7 @@ fn handle_muscle(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
 
 /// `equipment <equipment>` - lists exercises requiring the given equipment.
 fn handle_equipment(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
-    let parsed_args = match parseArgs(args, None) {
+    let parsed_args = match parse_args(args, None) {
         Ok(pargs) => pargs,
         Err(err) => {
             println!("{}", err);
@@ -237,7 +313,7 @@ fn handle_equipment(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
 
 /// `category <category>` - lists exercises in the given category.
 fn handle_category(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
-    let parsed_args = match parseArgs(args, None) {
+    let parsed_args = match parse_args(args, None) {
         Ok(pargs) => pargs,
         Err(err) => {
             println!("{}", err);
@@ -288,7 +364,7 @@ fn handle_category(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
 
 /// `level <level>` - lists exercises at the given difficulty.
 fn handle_level(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
-    let parsed_args = match parseArgs(args, None) {
+    let parsed_args = match parse_args(args, None) {
         Ok(pargs) => pargs,
         Err(err) => {
             println!("{}", err);
@@ -339,7 +415,7 @@ fn handle_level(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
 
 /// `force <force>` - lists exercises with the given force (push, pull, static).
 fn handle_force(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
-    let parsed_args = match parseArgs(args, None) {
+    let parsed_args = match parse_args(args, None) {
         Ok(pargs) => pargs,
         Err(err) => {
             println!("{}", err);
@@ -390,7 +466,7 @@ fn handle_force(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
 
 /// `mechanic <mechanic>` - lists exercises with the given mechanic (isolation, compound).
 fn handle_mechanic(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
-    let parsed_args = match parseArgs(args, None) {
+    let parsed_args = match parse_args(args, None) {
         Ok(pargs) => pargs,
         Err(err) => {
             println!("{}", err);
@@ -439,9 +515,37 @@ fn handle_mechanic(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
     ControlFlow::Continue
 }
 
-/// `help` - planned: list the available commands. Not implemented yet.
-fn handle_help(args: &[&str], library: &ExerciseLibrary) -> ControlFlow {
-    todo!()
+/// `help` - lists the available commands and their syntax.
+fn handle_help(_args: &[&str], _library: &ExerciseLibrary) -> ControlFlow {
+    let rows: [(&str, &str); 12] = [
+        ("info \"<exercise name>\"", "Show full details for one exercise"),
+        (
+            "search <term> [-level L] [-equipment E]",
+            "Find exercises by name, best matches first",
+        ),
+        ("muscle <muscle>", "List exercises training a muscle"),
+        ("equipment <equipment>", "List exercises requiring equipment"),
+        ("category <category>", "List exercises in a category"),
+        ("level <level>", "List exercises at a difficulty"),
+        ("force <force>", "List exercises by force (push, pull, static)"),
+        (
+            "mechanic <mechanic>",
+            "List exercises by mechanic (isolation, compound)",
+        ),
+        ("random [muscle]", "Show a random exercise, optionally by muscle"),
+        ("clear", "Clear the terminal"),
+        ("help", "Show this message"),
+        ("quit / exit", "Exit Spotter"),
+    ];
+
+    println!("Available commands:");
+    for (syntax, description) in rows {
+        println!("  {syntax:<42} {description}");
+    }
+    println!();
+    println!("Multi-word arguments need quotes, e.g. muscle \"lower back\".");
+
+    ControlFlow::Continue
 }
 
 /// `quit` / `exit` - signals the main loop to stop.

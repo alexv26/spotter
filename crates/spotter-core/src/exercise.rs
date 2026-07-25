@@ -612,26 +612,18 @@ impl fmt::Display for Exercise {
             .instructions
             .iter()
             .enumerate()
-            .map(|(i, step)| format!("  {}. {}", i + 1, step))
+            .map(|(i, step)| format!("{}. {}", i + 1, step))
             .collect::<Vec<_>>()
             .join("\n");
 
-        let title = format!(" {} ", self.name);
-        let border = "═".repeat(title.chars().count().max(24));
+        let divider = "─".repeat(60);
 
-        writeln!(f, "{border}")?;
-        writeln!(f, "{title}")?;
-        writeln!(f, "{border}")?;
-        writeln!(f, "{:<11}{}", "Level:", self.level)?;
-        writeln!(f, "{:<11}{}", "Category:", self.category)?;
-        writeln!(f, "{:<11}{}", "Force:", force)?;
-        writeln!(f, "{:<11}{}", "Mechanic:", mechanic)?;
-        writeln!(f, "{:<11}{}", "Equipment:", equipment)?;
-        writeln!(f, "{:<11}{}", "Primary:", primary_muscles)?;
-        writeln!(f, "{:<11}{}", "Secondary:", secondary_muscles)?;
-        writeln!(f)?;
-        writeln!(f, "Instructions:")?;
-        write!(f, "{instructions}")
+        writeln!(f, "{divider}")?;
+        writeln!(f, "{} [{}, {}]", self.name, self.category, self.level)?;
+        writeln!(f, "Force: {force}  Mechanic: {mechanic}  Equipment: {equipment}")?;
+        writeln!(f, "Primary: {primary_muscles}  Secondary: {secondary_muscles}")?;
+        writeln!(f, "{instructions}")?;
+        write!(f, "{divider}")
     }
 }
 

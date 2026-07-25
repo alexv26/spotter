@@ -1,6 +1,6 @@
 //! Turns raw terminal input into structured command arguments: reading a line
-//! ([`getUserInput`]), tokenizing it while respecting quoted phrases
-//! ([`parseArgs`], [`nextArg`]), and extracting a specific flag's value out of
+//! ([`get_user_input`]), tokenizing it while respecting quoted phrases
+//! ([`parse_args`], [`next_arg`]), and extracting a specific flag's value out of
 //! the result ([`get_flag_value`]). Nothing here knows about specific commands
 //! or exercise data - that's `commands.rs`'s job, one layer up.
 
@@ -8,7 +8,7 @@ use std::io::{self, Write};
 use std::str::FromStr;
 
 /// Prints `cli_msg` as a prompt (no trailing newline) and reads one line from stdin.
-pub fn getUserInput(cli_msg: String) -> String {
+pub fn get_user_input(cli_msg: String) -> String {
     let mut input = String::new();
 
     print!("{cli_msg}");
@@ -33,7 +33,7 @@ pub enum ArgType {
     Flag(String),
     /// A flag paired with the value that followed it (e.g. `-level beginner`
     /// becomes `flag: "-level"`, `value: "beginner"`), for flags registered as
-    /// value-taking via `parseArgs`'s `flags_with_values` parameter.
+    /// value-taking via `parse_args`'s `flags_with_values` parameter.
     Option { flag: String, value: String },
 }
 
@@ -56,9 +56,9 @@ pub fn get_flag_value<T: FromStr>(args: &[ArgType], name: &str) -> Result<Option
 /// Reads the argument at `*i`, updating `*i` to the last token it consumed.
 /// A plain word is a single token; a quoted phrase (`"like this"`) can span
 /// several whitespace-split tokens, which get joined back into one string here.
-/// Callers position `*i` at whatever they want read - e.g. `parseArgs`
+/// Callers position `*i` at whatever they want read - e.g. `parse_args`
 /// advances past a flag before calling this, so it reads the flag's value.
-pub fn nextArg(args: &[&str], i: &mut usize) -> Result<String, String> {
+pub fn next_arg(args: &[&str], i: &mut usize) -> Result<String, String> {
     let j = *i;
     if j >= args.len() {
         println!("Error: invalid argument provided.");
@@ -98,11 +98,11 @@ pub fn nextArg(args: &[&str], i: &mut usize) -> Result<String, String> {
 /// a `-`-prefixed token becomes a [`ArgType::Flag`], or an [`ArgType::Option`]
 /// if it's listed in `flags_with_values` (in which case the following token is
 /// consumed as its value); anything else becomes an [`ArgType::Positional`],
-/// with quoted multi-word phrases joined into one via [`nextArg`].
+/// with quoted multi-word phrases joined into one via [`next_arg`].
 ///
 /// `flags_with_values` is `None` for commands that take no value-taking flags
 /// at all (every other `-`-prefixed token is still parsed as a boolean `Flag`).
-pub fn parseArgs(
+pub fn parse_args(
     args: &[&str],
     flags_with_values: Option<&[&str]>,
 ) -> Result<Vec<ArgType>, String> {
@@ -122,7 +122,7 @@ pub fn parseArgs(
                     return Err(format!("Flag {} needs an argument", &arg));
                 }
                 i += 1;
-                let next_arg: String = match nextArg(args, &mut i) {
+                let next_arg: String = match next_arg(args, &mut i) {
                     Ok(val) => val,
                     Err(err) => {
                         return Err(err);
@@ -139,7 +139,7 @@ pub fn parseArgs(
             }
         } else {
             // Positional
-            let next_arg: String = match nextArg(args, &mut i) {
+            let next_arg: String = match next_arg(args, &mut i) {
                 Ok(val) => val,
                 Err(err) => {
                     return Err(err);

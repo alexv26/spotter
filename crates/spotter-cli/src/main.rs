@@ -10,7 +10,7 @@ use spotter_core::exercise::Level;
 
 use crate::commands::Handler;
 use crate::commands::build_command_table;
-use crate::input::getUserInput;
+use crate::input::get_user_input;
 
 fn main() {
     let path = Path::new("data/free-exercise-db/exercises");
@@ -26,11 +26,18 @@ fn main() {
     println!("\x1B[2J\x1B[3J\x1B[1;1H");
 
     // Workout CLI Loop
-    println!("===== SPOTTER CLI INTERFACE =====");
+    let divider = "─".repeat(60);
+    println!("{divider}");
+    println!("  Spotter — A Gym Companion");
+    println!(
+        "  {} exercises loaded. Type \"help\" to see available commands.",
+        library.num_exercises
+    );
+    println!("{divider}");
     let commands_table: HashMap<&'static str, Handler> = build_command_table();
 
     loop {
-        let user_cmd: String = getUserInput("$ ".to_string());
+        let user_cmd: String = get_user_input("$ ".to_string());
         let split_str: Vec<&str> = user_cmd.split_whitespace().collect();
         let args: &[&str] = &split_str[..];
 
