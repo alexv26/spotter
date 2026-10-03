@@ -8,7 +8,7 @@ use std::io::{self, Write};
 use std::str::FromStr;
 
 /// Prints `cli_msg` as a prompt (no trailing newline) and reads one line from stdin.
-pub fn get_user_input(cli_msg: String) -> String {
+pub fn get_user_input(cli_msg: &str) -> String {
     let mut input = String::new();
 
     print!("{cli_msg}");

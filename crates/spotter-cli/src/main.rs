@@ -37,7 +37,7 @@ fn main() {
     let commands_table: HashMap<&'static str, Handler> = build_command_table();
 
     loop {
-        let user_cmd: String = get_user_input("$ ".to_string());
+        let user_cmd: String = get_user_input("$ ");
         let split_str: Vec<&str> = user_cmd.split_whitespace().collect();
         let args: &[&str] = &split_str[..];
 
